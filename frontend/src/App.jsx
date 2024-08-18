@@ -6,11 +6,12 @@ import {
 } from "@chakra-ui/react";
 import Navbar from "./components/Navbar";
 import AddCategoryBox from "./components/AddCategoryBox";
-import ListCategoryTable from "./components/ListCategoryTable";
-import { useState } from "react";
-import PriceHistoryTable from "./components/PriceHistoryTable";
+import React, { useState, Suspense } from "react";
+
 
 export const BASE_URL = 'http://127.0.0.1:5000'
+const ListCategoryTable = React.lazy(() => import("./components/ListCategoryTable"));
+const PriceHistoryTable = React.lazy(() => import("./components/PriceHistoryTable"));
 
 function App() {
   const [categories, setCategories] = useState([]);
@@ -24,14 +25,16 @@ function App() {
           <Box flex="1" pr={25}>
             <AddCategoryBox setCategories={setCategories} categories={categories}/>
           </Box>
-          <Box flex="3">
-            <ListCategoryTable categories={categories} setCategories={setCategories} setSelectedCategoryId={setSelectedCategoryId}/>
-          </Box>
+          <Suspense fallback={<div>Loading...</div>}>
+              <ListCategoryTable categories={categories} setCategories={setCategories} setSelectedCategoryId={setSelectedCategoryId}/>
+            </Suspense>
         </Flex>
 
       {/* Renderiza PriceHistoryTable solo si se ha seleccionado una categoría */}
       {selectedCategoryId && (
+          <Suspense fallback={<div>Loading...</div>}>
           <PriceHistoryTable categoryId={selectedCategoryId} />
+        </Suspense>
       )}
       </Container>
     </Stack>
