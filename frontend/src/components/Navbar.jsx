@@ -28,7 +28,7 @@ function Navbar() {
 						display={{ base: "none", sm: "flex" }}
 					>
 						<Text fontSize={"lg"} fontWeight={600}>
-                        ML tracking product web scraper
+            MercadoLibre Product Price Tracker and Web Scraper
 						</Text>
 					</Flex>
 					{/* Right side */}

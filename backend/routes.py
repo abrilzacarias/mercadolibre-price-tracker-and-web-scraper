@@ -2,8 +2,10 @@ from app import app, db
 from flask import request, jsonify
 from models import *
 from scraper import scrape_product
-
-# Get products
+from twisted.internet import reactor
+from twisted.internet.threads import blockingCallFromThread
+from sqlalchemy.exc import SQLAlchemyError
+# Get categories
 @app.route("/category", methods=["GET"])
 def get_category():
     categories = Category.query.all()
@@ -11,21 +13,45 @@ def get_category():
     result = [category.to_json() for category in categories]
     return jsonify(result)
 
+async def scrape_product_async(search_query):
+    # Simular el proceso de scraping con un sleep
+    await scrape_product(search_query)
+    print(f"Scraping completed for: {search_query}")
+
 # add/scrape product category
 @app.route("/category", methods=["POST"])
 def scrape_product_category():
     try:
-        data = request.json
-        name = data.get("name")
+        input_data = request.json.get('name')
         
-        if not name:
+        if not input_data:
             return jsonify({'error': 'No category provided'}), 400
 
-        scrape_product(name)
+        def run_spider():
+            return scrape_product(input_data)
+        
+        # Ejecutar el spider y esperar a que termine
+        try:
+            blockingCallFromThread(reactor, run_spider)
+            try:
+                # Obtener la última categoría añadida
+                last_category = Category.query.order_by(Category.id.desc()).first()
 
-        return jsonify({
-            'msg': 'Product scraping started successfully',
-        }), 202
+                if last_category.name == input_data:
+                    return jsonify({
+                        'id': last_category.id,
+                        'name': last_category.name,
+                        'tracked': last_category.tracked
+                    }), 201
+
+                return jsonify({'error': 'An error occurred'}), 409
+
+            except SQLAlchemyError as e:
+                print(f"Database error: {e}")
+                return jsonify({"error": f"Error in database: {str(e)}"}), 500
+        except Exception as e:
+            return jsonify({"error": f"Error during scraping: {str(e)}"}), 500
+
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
@@ -53,3 +79,73 @@ def delete_product_category(id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+# Get price for price table
+@app.route("/pricehistory/<int:category_id>", methods=["GET"])
+def get_price_history_by_category(category_id):
+    products = Product.query.filter_by(category_id=category_id).all()
+
+    if not products:
+        return jsonify({"error": "No products found for this category"}), 404
+
+    result = []
+    for product in products:
+        # Get the latest price record for the product
+        latest_price = PriceHistory.query.filter_by(product_id=product.id).order_by(PriceHistory.date.desc()).first()
+        
+        # Calculate price change percentage if there are previous records
+        previous_prices = PriceHistory.query.filter_by(product_id=product.id).order_by(PriceHistory.date.desc()).all()
+
+        if len(previous_prices) > 1:
+            price_change = ((latest_price.price - previous_prices[1].price) / previous_prices[1].price) * 100
+        else:
+            price_change = 0
+
+        result.append({
+            "id": product.id,
+            "product_name": product.name,
+            "actual_price": latest_price.price,
+            "price_change": price_change,
+            "date": latest_price.date
+        })
+    #print(result)
+    return jsonify(result)
+
+#get product details
+@app.route("/product/<int:id>", methods=["GET"])
+def get_details(id):
+    product = Product.query.filter_by(id=id).first()
+
+    if not product:
+        return jsonify({"error": "No products found for this id"}), 404
+
+    result = product.to_json()
+
+    return jsonify(result)
+
+#update tracked category
+@app.route("/tracked-category/<int:id>", methods=["PUT"])
+def update_tracked_category(id):
+    category = Category.query.filter_by(id=id).first()
+
+    if not category:
+        return jsonify({"error": "No category found for this id"}), 404
+
+    category.tracked = False
+    db.session.commit()  # Guarda los cambios en la base de datos
+
+    return jsonify(category.to_json())
+
+
+# Get price history for price chart
+@app.route("/chart_price_history/<int:product_id>", methods=["GET"])
+def get_chart_price_history(product_id):
+    try:
+        # Obtener el historial de precios del producto
+        price_history = PriceHistory.query.filter_by(product_id=product_id).order_by(PriceHistory.date).all()
+        
+        data = [ph.to_json() for ph in price_history]
+        
+        return jsonify(data)
+    except SQLAlchemyError as e:
+        return jsonify({"error": f"Error in database: {str(e)}"}), 500

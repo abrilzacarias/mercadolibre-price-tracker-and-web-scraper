@@ -6,7 +6,7 @@ from twisted.internet import reactor
 from scrapy.utils.log import configure_logging
 import threading
 from scrapy.crawler import CrawlerRunner
-
+from twisted.internet.defer import Deferred
 
 class MercadoLibreCrawler(scrapy.Spider):
     name = "mercadolibre"
@@ -15,80 +15,103 @@ class MercadoLibreCrawler(scrapy.Spider):
         "DOWNLOAD_DELAY": 3,  # delay de 3 segundos entre solicitudes
         "RANDOMIZE_DOWNLOAD_DELAY": True,  # aleatorizar el delay
     }
-    download_delay = 1
+    items_count = 0
+    base_url = 'https://listado.mercadolibre.com.ar/'
+    max_items = 10
 
     def __init__(self, search_query=None, *args, **kwargs):
         super(MercadoLibreCrawler, self).__init__(*args, **kwargs)
         self.search_query = search_query
 
     def start_requests(self):
-        base_url = f"https://listado.mercadolibre.com.ar/{self.search_query}"
-        yield scrapy.Request(url=base_url, callback=self.parse_search_results)
+        #print(self.search_query)
+        clean_url = self.search_query.replace(" ", "-").lower()
+        url = self.base_url + clean_url
+        yield scrapy.Request(url, self.parse)
 
-    def parse_search_results(self, response):
-        products = response.xpath('//li[contains(@class, "ui-search-layout__item")]')
+    def parse(self, response):
+        content = response.css('li.ui-search-layout__item')
+        
+        for post in content:
+            if self.items_count >= self.max_items:
+                return  # Detiene el spider después de 10 items
 
-        for product in products[:10]:  # Limitamos a los 10 primeros resultados
-            url = product.xpath('.//a[contains(@class, "ui-search-link")]/@href').get()
-            if url:
-                yield scrapy.Request(url=url, callback=self.parse_product_details)
+            name = post.css('h2::text').get()
+            price = post.css('span.andes-money-amount__fraction::text').get()
+            try:
+                price = float(price.replace(".", "").replace(",", "."))
+            except (ValueError, AttributeError):
+                price = 0.0
+            url = post.css('a::attr(href)').get()
+            img_link = post.css('img::attr(data-src)').get()
+            if not img_link:
+                img_link = post.css('img::attr(src)').get()
+            category_name = self.search_query
+            self.items_count += 1
 
-    def parse_product_details(self, response):
-        name = response.xpath('//h1[@class="ui-pdp-title"]/text()').get()
-        price = response.xpath(
-            '//span[@class="andes-money-amount__fraction"]/text()'
-        ).get()
-        url = response.url
-        category_name = self.search_query
+            with app.app_context():
+                category = Category.query.filter_by(name=category_name).first()
+                if not category:
+                    category = Category(name=category_name, tracked=True)
+                    db.session.add(category)
+                    db.session.commit()
+                
 
-        # Convertir el precio a float
-        try:
-            price = float(price.replace(".", "").replace(",", "."))
-        except (ValueError, AttributeError):
-            price = 0.0
-
-        with app.app_context():
-            category = Category.query.filter_by(name=category_name).first()
-            if not category:
-                category = Category(name=category_name, tracked=True)
-                db.session.add(category)
+                productAdd = Product.query.filter_by(name=name).first()
+                if not productAdd:
+                    product = Product(
+                        name=name,
+                        url=url,
+                        img=img_link, 
+                        price=price,
+                        created_at=datetime.utcnow(),
+                        category_id=category.id,
+                        source="MercadoLibre",
+                    )
+                    db.session.add(product)
+                    
+                else:
+                    product.price = price  # Update the existing product's price
                 db.session.commit()
 
-            product = Product(
-                name=name,
-                url=url,
-                price=price,
-                created_at=datetime.utcnow(),
-                category_id=category.id,
-                source="MercadoLibre",
-            )
-            db.session.add(product)
-            db.session.commit()
+                # Crear el historial de precios
+                price_history = PriceHistory(
+                    product_id=product.id, date=datetime.utcnow(), price=price
+                )
+                db.session.add(price_history)
+                db.session.commit()  # Commit al final de la transacción
 
-            # Crear el historial de precios
-            price_history = PriceHistory(
-                product_id=product.id, date=datetime.utcnow().date(), price=price
-            )
-            db.session.add(price_history)
-            db.session.commit()  # Commit al final de la transacción
+        if self.items_count < self.max_items:
+            next_page = response.css('a.andes-pagination__link[title="Siguiente"]::attr(href)').get()
+            if next_page:
+                yield scrapy.Request(next_page, self.parse)
+        
+       
+        
 
+    def closed(self, reason):
+        self.logger.info(f"Término el scraping. Se extrajeron {self.items_count} items.")
+    
 
 def start_reactor():
     if not reactor.running:
         reactor.run(installSignalHandlers=False)
 
-
 def scrape_product(search_query):
     configure_logging()
     runner = CrawlerRunner()
-    reactor.callFromThread(runner.crawl, MercadoLibreCrawler, search_query=search_query)
-
+    #Deferred es una clase para manejar operaciones asincrónicas.
+    d = runner.crawl(MercadoLibreCrawler, search_query=search_query)
+    if not isinstance(d, Deferred):
+        d = Deferred()
+        d.callback(None)
+    return d
 
 # Inicia el reactor en un hilo separado al importar este módulo
 reactor_thread = threading.Thread(target=start_reactor, daemon=True)
 reactor_thread.start()
 
-
 if __name__ == "__main__":
     product = input("Ingrese el producto a buscar: ")
     scrape_product(product)
+    
