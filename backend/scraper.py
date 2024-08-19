@@ -14,6 +14,8 @@ class MercadoLibreCrawler(scrapy.Spider):
         "USER_AGENT": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
         "DOWNLOAD_DELAY": 3,  # delay de 3 segundos entre solicitudes
         "RANDOMIZE_DOWNLOAD_DELAY": True,  # aleatorizar el delay
+        "CONCURRENT_REQUESTS": 8,  # Ajusta esto según tus necesidades
+        "CONCURRENT_REQUESTS_PER_DOMAIN": 4,
     }
     items_count = 0
     base_url = 'https://listado.mercadolibre.com.ar/'
@@ -22,6 +24,7 @@ class MercadoLibreCrawler(scrapy.Spider):
     def __init__(self, search_query=None, *args, **kwargs):
         super(MercadoLibreCrawler, self).__init__(*args, **kwargs)
         self.search_query = search_query
+        self.product_cache = {}
 
     def start_requests(self):
         #print(self.search_query)
@@ -31,21 +34,23 @@ class MercadoLibreCrawler(scrapy.Spider):
 
     def parse(self, response):
         content = response.css('li.ui-search-layout__item')
-        
+        price_histories_to_add = []
+
         for post in content:
             if self.items_count >= self.max_items:
-                return  # Detiene el spider después de 10 items
+                break  # Detiene el spider después de 10 items
 
             name = post.css('h2::text').get()
-            price = post.css('span.andes-money-amount__fraction::text').get()
+            price = post.css('span.andes-money-amount__fraction::text').get().replace(".", "").replace(",", ".")
+            
             try:
-                price = float(price.replace(".", "").replace(",", "."))
-            except (ValueError, AttributeError):
+                price = float(price)
+            except ValueError:
                 price = 0.0
+
             url = post.css('a::attr(href)').get()
-            img_link = post.css('img::attr(data-src)').get()
-            if not img_link:
-                img_link = post.css('img::attr(src)').get()
+            img_link = post.css('img::attr(data-src)').get() or post.css('img::attr(src)').get()
+            
             category_name = self.search_query
             self.items_count += 1
 
@@ -57,7 +62,12 @@ class MercadoLibreCrawler(scrapy.Spider):
                     db.session.commit()
 
                 if category.tracked:
-                    product = Product.query.filter_by(name=name).first()
+                    if name not in self.product_cache:
+                        product = Product.query.filter_by(name=name).first()
+                        self.product_cache[name] = product
+                    else:
+                        product = self.product_cache[name]
+
                     if not product:
                         product = Product(
                             name=name,
@@ -69,17 +79,21 @@ class MercadoLibreCrawler(scrapy.Spider):
                             source="MercadoLibre",
                         )
                         db.session.add(product)
+                        db.session.commit()  # Guarda el producto en la base de datos para obtener su ID
+
+                        self.product_cache[name] = product  # Actualiza la caché con el nuevo producto
                     else:
                         product.price = price  # Actualiza el precio del producto existente
-                    
-                    db.session.commit()
 
                     # Crear el historial de precios
                     price_history = PriceHistory(
                         product_id=product.id, date=datetime.utcnow(), price=price
                     )
-                    db.session.add(price_history)
-                    db.session.commit()  # Commit al final de la transacción
+                    price_histories_to_add.append(price_history)
+
+        with app.app_context():
+            db.session.add_all(price_histories_to_add)
+            db.session.commit()
 
         if self.items_count < self.max_items:
             next_page = response.css('a.andes-pagination__link[title="Siguiente"]::attr(href)').get()
@@ -87,8 +101,7 @@ class MercadoLibreCrawler(scrapy.Spider):
                 yield scrapy.Request(next_page, self.parse)
         
        
-        
-
+    
     def closed(self, reason):
         self.logger.info(f"Término el scraping. Se extrajeron {self.items_count} items.")
     
