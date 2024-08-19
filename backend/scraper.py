@@ -31,12 +31,10 @@ class MercadoLibreCrawler(scrapy.Spider):
 
     def parse(self, response):
         content = response.css('li.ui-search-layout__item')
-        products_to_commit = []
-        price_histories_to_commit = []
-
+        
         for post in content:
             if self.items_count >= self.max_items:
-                return  # Stop the spider after reaching the maximum number of items
+                return  # Detiene el spider después de 10 items
 
             name = post.css('h2::text').get()
             price = post.css('span.andes-money-amount__fraction::text').get()
@@ -44,7 +42,6 @@ class MercadoLibreCrawler(scrapy.Spider):
                 price = float(price.replace(".", "").replace(",", "."))
             except (ValueError, AttributeError):
                 price = 0.0
-
             url = post.css('a::attr(href)').get()
             img_link = post.css('img::attr(data-src)').get()
             if not img_link:
@@ -52,43 +49,45 @@ class MercadoLibreCrawler(scrapy.Spider):
             category_name = self.search_query
             self.items_count += 1
 
-            # Access the database session
             with app.app_context():
                 category = Category.query.filter_by(name=category_name).first()
                 if not category:
                     category = Category(name=category_name, tracked=True)
                     db.session.add(category)
-                    db.session.flush()  # Ensure category is added and its ID is available
-                
-                product = Product.query.filter_by(name=name).first()
-                if not product:
-                    product = Product(
-                        name=name,
-                        url=url,
-                        img=img_link,
-                        price=price,
-                        created_at=datetime.utcnow(),
-                        category_id=category.id,
-                        source="MercadoLibre",
-                    )
-                    products_to_commit.append(product)
-                else:
-                    product.price = price  # Update the existing product's price
-                    products_to_commit.append(product)  # Ensure to update existing products as well
-                
-                if category.tracked:
-                    price_history = PriceHistory(
-                        product_id=product.id,
-                        date=datetime.utcnow(),
-                        price=price
-                    )
-                    price_histories_to_commit.append(price_history)
+                    db.session.commit()
 
-        # Commit all product changes and price histories
-        with app.app_context():
-            db.session.add_all(products_to_commit)
-            db.session.add_all(price_histories_to_commit)
-            db.session.commit()
+                if category.tracked:
+                    product = Product.query.filter_by(name=name).first()
+                    if not product:
+                        product = Product(
+                            name=name,
+                            url=url,
+                            img=img_link,
+                            price=price,
+                            created_at=datetime.utcnow(),
+                            category_id=category.id,
+                            source="MercadoLibre",
+                        )
+                        db.session.add(product)
+                    else:
+                        product.price = price  # Actualiza el precio del producto existente
+                    
+                    db.session.commit()
+
+                    # Crear el historial de precios
+                    price_history = PriceHistory(
+                        product_id=product.id, date=datetime.utcnow(), price=price
+                    )
+                    db.session.add(price_history)
+                    db.session.commit()  # Commit al final de la transacción
+
+        if self.items_count < self.max_items:
+            next_page = response.css('a.andes-pagination__link[title="Siguiente"]::attr(href)').get()
+            if next_page:
+                yield scrapy.Request(next_page, self.parse)
+        
+       
+        
 
     def closed(self, reason):
         self.logger.info(f"Término el scraping. Se extrajeron {self.items_count} items.")

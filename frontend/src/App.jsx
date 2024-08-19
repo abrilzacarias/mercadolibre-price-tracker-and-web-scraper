@@ -9,7 +9,7 @@ import AddCategoryBox from "./components/AddCategoryBox";
 import React, { useState, Suspense } from "react";
 
 
-export const BASE_URL = import.meta.env.MODE === "development" ? "http://127.0.0.1:5000/api" : "/api";
+export const BASE_URL = import.meta.env.MODE === "development" ? "http://127.0.0.1:5000" : "";
 const ListCategoryTable = React.lazy(() => import("./components/ListCategoryTable"));
 const PriceHistoryTable = React.lazy(() => import("./components/PriceHistoryTable"));
 
