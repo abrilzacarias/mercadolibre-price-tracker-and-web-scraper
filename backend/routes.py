@@ -1,10 +1,11 @@
 from app import app, db
 from flask import request, jsonify
 from models import *
-from scraper import scrape_product
+
 from twisted.internet import reactor
 from twisted.internet.threads import blockingCallFromThread
 from sqlalchemy.exc import SQLAlchemyError
+import time
 # Get categories
 @app.route("/category", methods=["GET"])
 def get_category():
@@ -13,44 +14,40 @@ def get_category():
     result = [category.to_json() for category in categories]
     return jsonify(result)
 
-async def scrape_product_async(search_query):
-    # Simular el proceso de scraping con un sleep
-    await scrape_product(search_query)
-    print(f"Scraping completed for: {search_query}")
-
 # add/scrape product category
 @app.route("/category", methods=["POST"])
 def scrape_product_category():
+    from scraper import scrape_product
     try:
         input_data = request.json.get('name')
         
         if not input_data:
             return jsonify({'error': 'No category provided'}), 400
 
-        def run_spider():
-            return scrape_product(input_data)
+        scrape_product(input_data)
+        
+        # Esperar un poco para dar tiempo a que se procesen los datos
+        time.sleep(5)
         
         # Ejecutar el spider y esperar a que termine
+
         try:
-            blockingCallFromThread(reactor, run_spider)
-            try:
-                # Obtener la última categoría añadida
-                last_category = Category.query.order_by(Category.id.desc()).first()
+            # Obtener la última categoría añadida
+            last_category = Category.query.order_by(Category.id.desc()).first()
 
-                if last_category.name == input_data:
-                    return jsonify({
-                        'id': last_category.id,
-                        'name': last_category.name,
-                        'tracked': last_category.tracked
-                    }), 201
+            if last_category.name == input_data:
+                return jsonify({
+                    'id': last_category.id,
+                    'name': last_category.name,
+                    'tracked': last_category.tracked
+                }), 201
 
-                return jsonify({'error': 'An error occurred'}), 409
+            return jsonify({'error': 'An error occurred'}), 409
 
-            except SQLAlchemyError as e:
-                print(f"Database error: {e}")
-                return jsonify({"error": f"Error in database: {str(e)}"}), 500
-        except Exception as e:
-            return jsonify({"error": f"Error during scraping: {str(e)}"}), 500
+        except SQLAlchemyError as e:
+            print(f"Database error: {e}")
+            return jsonify({"error": f"Error in database: {str(e)}"}), 500
+
 
     except Exception as e:
         db.session.rollback()

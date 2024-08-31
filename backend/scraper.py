@@ -5,8 +5,10 @@ from datetime import datetime
 from twisted.internet import reactor
 from scrapy.utils.log import configure_logging
 import threading
-from scrapy.crawler import CrawlerRunner
+from scrapy.crawler import CrawlerProcess
 from twisted.internet.defer import Deferred
+from scrapy.utils.project import get_project_settings
+from multiprocessing import Process
 
 class MercadoLibreCrawler(scrapy.Spider):
     name = "mercadolibre"
@@ -106,23 +108,15 @@ class MercadoLibreCrawler(scrapy.Spider):
         self.logger.info(f"Término el scraping. Se extrajeron {self.items_count} items.")
     
 
-def start_reactor():
-    if not reactor.running:
-        reactor.run(installSignalHandlers=False)
+def run_spider(search_query):
+    process = CrawlerProcess(get_project_settings())
+    process.crawl(MercadoLibreCrawler, search_query=search_query)
+    process.start()
 
 def scrape_product(search_query):
-    configure_logging()
-    runner = CrawlerRunner()
-    #Deferred es una clase para manejar operaciones asincrónicas.
-    d = runner.crawl(MercadoLibreCrawler, search_query=search_query)
-    if not isinstance(d, Deferred):
-        d = Deferred()
-        d.callback(None)
-    return d
-
-# Inicia el reactor en un hilo separado al importar este módulo
-reactor_thread = threading.Thread(target=start_reactor, daemon=True)
-reactor_thread.start()
+    p = Process(target=run_spider, args=(search_query,))
+    p.start()
+    p.join()
 
 if __name__ == "__main__":
     product = input("Ingrese el producto a buscar: ")
