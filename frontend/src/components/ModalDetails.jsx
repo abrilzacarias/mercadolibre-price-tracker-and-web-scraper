@@ -48,7 +48,7 @@ function ModalDetails({ isOpen, onClose, productId }) {
     <Modal onClose={onClose} isOpen={isOpen} size={['sm', 'md']}>
       <ModalOverlay />
       <ModalContent
-        maxW={['90vw', '70vw']} // Adjust the width for different screen sizes
+        maxW={{ base: '90vw', md: '60vw', lg: '40vw' }} // Adjust the width for different screen sizes
         mx="auto" // Center the modal horizontally
         mt={['20px', '50px']} // Margin-top for different screen sizes
         mb={['20px', '50px']} // Margin-bottom for different screen sizes

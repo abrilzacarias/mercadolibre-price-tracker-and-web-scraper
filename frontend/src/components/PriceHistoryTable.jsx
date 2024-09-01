@@ -8,14 +8,38 @@ import {
   Td,
   TableCaption,
   TableContainer,
-  Button,
-  Icon,
   useColorModeValue,
   Flex,
   Spinner,
+  Text
 } from "@chakra-ui/react";
 import { BASE_URL } from "../App";
 import ModalDetails from "./ModalDetails";
+
+const PriceChange = ({ priceChange }) => {
+  // Redondear el cambio de precio a dos decimales
+  const roundedPriceChange = priceChange.toFixed(2);
+
+  // Determinar el color basado en si el cambio es positivo o negativo
+  let formattedChange;
+  let color;
+
+  if (priceChange > 0) {
+    formattedChange = `+${roundedPriceChange}`;
+    color = 'green.500';
+  } else if (priceChange < 0) {
+    formattedChange = roundedPriceChange;
+    color = 'red.500';
+  } else {
+    formattedChange = roundedPriceChange;
+  }
+
+  return (
+    <Text fontWeight="bold" color={color}>
+      {formattedChange}
+    </Text>
+  );
+};
 
 function PriceHistoryTable({ categoryId }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -42,7 +66,7 @@ function PriceHistoryTable({ categoryId }) {
       }
     };
     if (categoryId) {
-      getProducts(); // Solo hace la llamada si categoryId no es null o undefined
+      getProducts(); 
     }
   }, [categoryId]);
 
@@ -92,9 +116,8 @@ function PriceHistoryTable({ categoryId }) {
               >
                 <Td>{product.date}</Td>
                 <Td>{product.product_name}</Td> 
-                {/* formatear precio en ARS */}
                 <Td>{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(product.actual_price)}</Td>
-                <Td>{product.price_change}</Td>
+                <Td><PriceChange priceChange={product.price_change} /></Td>
               </Tr>
             ))}
           </Tbody>

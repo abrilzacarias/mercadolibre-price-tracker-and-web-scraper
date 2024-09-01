@@ -128,11 +128,10 @@ def update_tracked_category(id):
     if not category:
         return jsonify({"error": "No category found for this id"}), 404
 
-    category.tracked = False
-    db.session.commit()  # Guarda los cambios en la base de datos
+    category.tracked = not category.tracked
+    db.session.commit()  
 
-    return jsonify(category.to_json())
-
+    return jsonify({"id": category.id, "tracked": category.tracked, "name": category.name})
 
 # Get price history for price chart
 @app.route("/chart_price_history/<int:product_id>", methods=["GET"])

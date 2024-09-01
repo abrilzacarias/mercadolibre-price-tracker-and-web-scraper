@@ -64,11 +64,7 @@ class MercadoLibreCrawler(scrapy.Spider):
                     db.session.commit()
 
                 if category.tracked:
-                    if name not in self.product_cache:
-                        product = Product.query.filter_by(name=name).first()
-                        self.product_cache[name] = product
-                    else:
-                        product = self.product_cache[name]
+                    product = Product.query.filter_by(name=name).first()
 
                     if not product:
                         product = Product(
@@ -81,12 +77,10 @@ class MercadoLibreCrawler(scrapy.Spider):
                             source="MercadoLibre",
                         )
                         db.session.add(product)
-                        db.session.commit()  # Guarda el producto en la base de datos para obtener su ID
 
-                        self.product_cache[name] = product  # Actualiza la caché con el nuevo producto
                     else:
                         product.price = price  # Actualiza el precio del producto existente
-
+                    db.session.commit()
                     # Crear el historial de precios
                     price_history = PriceHistory(
                         product_id=product.id, date=datetime.utcnow(), price=price
@@ -113,12 +107,17 @@ def run_spider(search_query):
     process.crawl(MercadoLibreCrawler, search_query=search_query)
     process.start()
 
+def scrape_products():
+    with app.app_context():
+        categories = Category.query.filter_by(tracked=True).all()
+        for category in categories:
+            scrape_product(category.name)
+
 def scrape_product(search_query):
     p = Process(target=run_spider, args=(search_query,))
     p.start()
     p.join()
 
 if __name__ == "__main__":
-    product = input("Ingrese el producto a buscar: ")
-    scrape_product(product)
+    scrape_products()
     

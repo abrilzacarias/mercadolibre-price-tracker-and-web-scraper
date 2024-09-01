@@ -85,23 +85,23 @@ function ListCategoryTable({ categories, setCategories, setSelectedCategoryId })
     const handleUpdateTracked = async (category) => {
       try {
         const res = await fetch(BASE_URL + `/tracked-category/${category.id}`, {
-          method: "PUT",  // Usamos PUT para actualizar
+          method: "PUT",
         });
         const data = await res.json();
-  
+    
         if (!res.ok) {
           throw new Error(data.error);
         }
-  
-        // Actualiza la categoría en el estado local
+    
+        // Actualiza la categoría en el estado local con el valor correcto del backend
         setCategories((prevCategories) =>
           prevCategories.map((c) =>
-            c.id === category.id ? { ...c, tracked: !c.tracked } : c
+            c.id === category.id ? { ...c, tracked: data.tracked } : c
           )
         );
-  
+    
         toast({
-          title: `Category ${category.tracked ? "untracked" : "tracked"} successfully.`,
+          title: `Category ${data.tracked ? "tracked" : "untracked"} successfully.`,
           status: "success",
           duration: 5000,
           isClosable: true,
@@ -118,6 +118,7 @@ function ListCategoryTable({ categories, setCategories, setSelectedCategoryId })
         });
       }
     };
+    
 
   return (
     <>
