@@ -5,7 +5,8 @@ import {
   Input,
   Button,
   useColorModeValue,
-  useToast
+  useToast,
+  Flex
 } from "@chakra-ui/react";
 import { BASE_URL } from "../App";
 
@@ -90,10 +91,15 @@ function AddCategoryBox( {setCategories, categories}) {
           />
         </FormControl>
 
+
+        <Flex mt={1} justify="center"> {/* Flex para centrar el botón */}
         <Button colorScheme="blue" mt={3} type="submit"
-        isLoading={isLoading}>
-          Add
+        width="100%"
+        isLoading={isLoading}
+        >
+          Add 
         </Button>
+        </Flex>
       </form>
     </Box>
   );

@@ -19,7 +19,7 @@ function Navbar() {
         px={4}
         bg={useColorModeValue("gray.300", "gray.900")}
       >
-        <Flex h='16' alignItems={"center"} justifyContent={"space-between"}>
+        <Flex width="100%" h='16' alignItems={"center"} justifyContent={"space-between"}>
 					{/* Left side */}
 					<Flex
 						alignItems={"center"}

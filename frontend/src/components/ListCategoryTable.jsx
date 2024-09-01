@@ -181,15 +181,16 @@ function ListCategoryTable({ categories, setCategories, setSelectedCategoryId })
                 </Td>
               </Tr>
             ))}
+            {isLoading && (
+            <Tr>
+              <Td colSpan="3" textAlign="center">
+                <Spinner size={"lg"} />
+              </Td>
+            </Tr>
+          )}
           </Tbody>
         </Table>
       </TableContainer>
-
-      {isLoading && (
-        <Flex justifyContent={"center"}>
-          <Spinner size={"l"} />
-        </Flex>
-      )}
 
       
     </>

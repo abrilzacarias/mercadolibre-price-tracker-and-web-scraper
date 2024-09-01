@@ -31,7 +31,6 @@ function ModalDetails({ isOpen, onClose, productId }) {
         if (!res.ok) {
           throw new Error(data.error);
         }
-        console.log(data);
         setProduct(data);
       } catch (error) {
         console.log(error);
@@ -46,29 +45,37 @@ function ModalDetails({ isOpen, onClose, productId }) {
   }, [productId]);
 
   return (
-    <Modal onClose={onClose} isOpen={isOpen}>
+    <Modal onClose={onClose} isOpen={isOpen} size={['sm', 'md']}>
       <ModalOverlay />
-      <ModalContent maxW="50vw">
+      <ModalContent
+        maxW={['90vw', '70vw']} // Adjust the width for different screen sizes
+        mx="auto" // Center the modal horizontally
+        mt={['20px', '50px']} // Margin-top for different screen sizes
+        mb={['20px', '50px']} // Margin-bottom for different screen sizes
+      >
         <ModalHeader>Product Details</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           {isLoading ? (
-            <Flex justifyContent={"center"}>
-              <Spinner size={"l"} />
+            <Flex justifyContent="center">
+              <Spinner size="lg" />
             </Flex>
           ) : product ? (
             <>
-              <Flex alignItems="center">
-                {/* Imagen a la izquierda */}
-                <Box flex="1" mr={[4, 4, 4]} >
-                  <Image       
-                  objectFit="contain" 
-                  boxSize="150px" src={product.img} alt="Product image" />
+              <Flex direction={['column', 'row']} alignItems="center">
+                {/* Image on top for mobile */}
+                <Box flex="1" mb={[4, 0]} mr={[0, 4]}>
+                  <Image
+                    objectFit="contain"
+                    boxSize={['150px', '200px']}
+                    src={product.img}
+                    alt="Product image"
+                  />
                 </Box>
 
-                {/* Detalles a la derecha */}
-                <Box fontSize="lg" flex="2" >
-                  <Text >
+                {/* Details on top for mobile */}
+                <Box flex="2" fontSize="lg">
+                  <Text>
                     <Text as="span" fontWeight="bold">
                       Name:
                     </Text>{" "}
@@ -111,14 +118,9 @@ function ModalDetails({ isOpen, onClose, productId }) {
                 </Box>
               </Flex>
 
-              <Box mt={4}
-              width='auto' // Adjust width for different screen sizes
-              pt={4}
-              margin="auto"
-              >
+              <Box mt={4}>
                 <PriceHistoryChart productId={productId} />
               </Box>
-            
             </>
           ) : (
             <Text>No product details found.</Text>
