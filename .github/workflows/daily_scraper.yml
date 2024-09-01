@@ -3,7 +3,6 @@ name: Run Scraper
 on:
   schedule:
     - cron: '0 0 * * *'  # Ejecuta cada día a la medianoche
-  workflow_dispatch:  # Permite la ejecución manual desde la interfaz de GitHub
 
 jobs:
   run-scraper:
@@ -23,8 +22,10 @@ jobs:
         cd backend
         pip install -r requirements.txt
 
+    - name: List files (for debugging)
+      run: ls -R
+
     - name: Run scraper
       run: |
         cd backend
         python scraper.py
-
