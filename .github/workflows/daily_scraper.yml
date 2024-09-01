@@ -3,7 +3,7 @@ name: Run Scraper
 on:
   schedule:
     - cron: '0 0 * * *'  # Ejecuta cada día a la medianoche
-
+  workflow_dispatch:  
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
