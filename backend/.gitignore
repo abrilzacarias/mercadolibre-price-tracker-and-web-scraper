@@ -17,9 +17,6 @@ pip-selfcheck.json
 # Environment variables
 .env
 
-# Database
-productscraper.db
-
 # Compiled Python files
 *.pyc
 
