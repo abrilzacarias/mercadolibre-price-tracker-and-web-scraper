@@ -1,28 +1,25 @@
-name: Run Scraper
+name: Daily Scraper Run
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Ejecuta cada día a la medianoche
+    - cron: '0 0 * * *'  
+    workflow_dispatch:
 
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-
+    - uses: actions/checkout@v2  
+    
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.8'
-
+        python-version: '3.12'  
+    
     - name: Install dependencies
       run: |
-        cd backend
-        pip install -r requirements.txt
+        pip install -r backend/requirements.txt
 
-    - name: Run scraper
-      run: |
-        cd backend
-        python scraper.py
+    - name: Run Scraper
+      run: python backend/scraper.py  # Reemplaza con la ruta a tu script scraper.
