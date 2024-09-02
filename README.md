@@ -22,7 +22,7 @@ ML Tracking Web Scraper is a web application built with React and Flask that all
 - **Database**: PostgreSQL
 - **Hosting**: Render, Neon Tech, Docker
 - **Scraping**: Scrapy
-- **CI/CD**: Scrapy
+- **CI/CD**: Github Actions
 
 ## Installation
 
