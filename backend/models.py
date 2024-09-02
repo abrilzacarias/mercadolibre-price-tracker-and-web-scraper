@@ -18,7 +18,7 @@ class Product(db.Model):
     __tablename__ = 'product'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(500))
-    url = db.Column(db.String(1000))
+    url = db.Column(db.String(3000))
     img = db.Column(db.String(1000))
     price = db.Column(db.Float)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
