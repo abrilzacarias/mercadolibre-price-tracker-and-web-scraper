@@ -25,11 +25,6 @@ def scrape_product_category():
             return jsonify({'error': 'No category provided'}), 400
 
         scrape_product(input_data)
-        
-        # Esperar un poco para dar tiempo a que se procesen los datos
-        time.sleep(5)
-        
-        # Ejecutar el spider y esperar a que termine
 
         try:
             # Obtener la última categoría añadida

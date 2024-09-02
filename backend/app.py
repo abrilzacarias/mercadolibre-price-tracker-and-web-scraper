@@ -8,7 +8,7 @@ app = Flask(__name__)
 # Añadir el directorio raíz al PYTHONPATH
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///productscraper.db"
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
