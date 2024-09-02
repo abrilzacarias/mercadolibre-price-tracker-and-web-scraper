@@ -74,8 +74,7 @@ ML Tracking Web Scraper is a web application built with React and Flask that all
     pip install -r requirements.txt
     ```
 
-4. Install dependencies:
--Update the database connection settings in config.py with your PostgreSQL database credentials.
+4. Update the database connection settings in config.py with your PostgreSQL database credentials.
 
 
 5. Run the server:
