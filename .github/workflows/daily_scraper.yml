@@ -26,6 +26,8 @@ jobs:
       run: ls -R
 
     - name: Run scraper
+      env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
       run: |
         cd backend
         python scraper.py
