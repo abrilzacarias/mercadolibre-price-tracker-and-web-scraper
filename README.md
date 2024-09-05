@@ -4,11 +4,11 @@ ML Tracking Web Scraper is a web application built with React and Flask that all
 
 ![image](https://github.com/user-attachments/assets/753525b9-a4b2-40e6-90ac-b10755a4b9f3)
 
-![image](https://github.com/user-attachments/assets/52c49f4a-55dd-47b1-8139-134c397800dc)
+![image](https://github.com/user-attachments/assets/a5210d69-0cad-4bb8-90b8-91ab1dc965f3)
 
 ## Features
 
-- **Web Scraping**: Extracts product information from Mercado Libre.
+- **Web Scraping**: Extracts product information from Mercado Libre using Scrapy.
 - **Scheduled Scraping**: Uses GitHub Actions to run the scraper every 24 hours.
 - **Category Management**: Add and delete product categories.
 - **Price Tracking**: View and track price history of products, and monitor price changes over time.
