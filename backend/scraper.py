@@ -1,123 +1,144 @@
-import scrapy
-from app import db, app
-from models import Category, Product, PriceHistory
+import asyncio
+import logging
 from datetime import datetime
-from twisted.internet import reactor
-from scrapy.utils.log import configure_logging
-import threading
-from scrapy.crawler import CrawlerProcess
-from twisted.internet.defer import Deferred
-from scrapy.utils.project import get_project_settings
-from multiprocessing import Process
+from app import db
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
+from models import Category, Product, PriceHistory
+from playwright.async_api import async_playwright
 
-class MercadoLibreCrawler(scrapy.Spider):
-    name = "mercadolibre"
-    custom_settings = {
-        "USER_AGENT": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-        "DOWNLOAD_DELAY": 3,  # delay de 3 segundos entre solicitudes
-        "RANDOMIZE_DOWNLOAD_DELAY": True,  # aleatorizar el delay
-        "CONCURRENT_REQUESTS": 8,  # Ajusta esto según tus necesidades
-        "CONCURRENT_REQUESTS_PER_DOMAIN": 4,
-    }
-    items_count = 0
-    base_url = 'https://listado.mercadolibre.com.ar/'
-    max_items = 10
+logger = logging.getLogger(__name__)
 
-    def __init__(self, search_query=None, *args, **kwargs):
-        super(MercadoLibreCrawler, self).__init__(*args, **kwargs)
+class MercadoLibreScraper:
+    def __init__(self, search_query, max_items=10):
         self.search_query = search_query
-        self.product_cache = {}
+        self.base_url = "https://listado.mercadolibre.com.ar/"
+        self.max_items = max_items
+        self.items_count = 0
 
-    def start_requests(self):
-        #print(self.search_query)
-        clean_url = self.search_query.replace(" ", "-").lower()
-        url = self.base_url + clean_url
-        yield scrapy.Request(url, self.parse)
+    async def scrape(self):
+        try:
+            async with async_playwright() as p:
+                logger.info("Iniciando Playwright y el navegador.")
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                await self.process_page(page)
+                await browser.close()
+                logger.info("Navegador cerrado.")
+        except Exception as e:
+            logger.error(f"Error al iniciar Playwright o el navegador: {e}", exc_info=True)
+            raise
 
-    def parse(self, response):
-        content = response.css('li.ui-search-layout__item')
-        price_histories_to_add = []
+    async def process_page(self, page, url=None):
+        try:
+            if url is None:
+                clean_url = self.search_query.replace(" ", "-").lower()
+                url = self.base_url + clean_url
 
-        for post in content:
-            if self.items_count >= self.max_items:
-                break  # Detiene el spider después de 10 items
+            logger.info(f"Navegando a la URL: {url}")
+            await page.goto(url, timeout=60000)
+            await page.wait_for_selector("li.ui-search-layout__item", timeout=30000)
+            logger.info("Selector encontrado. Procesando contenido de la página.")
 
-            name = post.css('h2::text').get()
-            price = post.css('span.andes-money-amount__fraction::text').get().replace(".", "").replace(",", ".")
-            
-            try:
-                price = float(price)
-            except ValueError:
-                price = 0.0
+            content = await page.query_selector_all("li.ui-search-layout__item")
+            price_histories_to_add = []
 
-            url = post.css('a::attr(href)').get()
-            img_link = post.css('img::attr(data-src)').get() or post.css('img::attr(src)').get()
-            
-            category_name = self.search_query
-            self.items_count += 1
+            for post in content:
+                if self.items_count >= self.max_items:
+                    logger.info("Número máximo de ítems alcanzado.")
+                    break
 
-            with app.app_context():
-                category = Category.query.filter_by(name=category_name).first()
-                if not category:
-                    category = Category(name=category_name, tracked=True)
-                    db.session.add(category)
-                    db.session.commit()
+                name_element = await post.query_selector("h2")
+                name = await name_element.evaluate("el => el.textContent") if name_element else None
+                price_text = await post.query_selector("span.andes-money-amount__fraction")
+                price = await price_text.evaluate("el => el.textContent") if price_text else "0.0"
+                url_element = await post.query_selector("a")
+                url = await url_element.evaluate("el => el.href") if url_element else None
+                img_element = await post.query_selector("img")
+                img_link = await img_element.evaluate("el => el.dataset.src || el.src") if img_element else None
 
-                if category.tracked:
-                    product = Product.query.filter_by(name=name).first()
+                try:
+                    price = float(price.replace(".", "").replace(",", ".")) if price else 0.0
+                except ValueError:
+                    price = 0.0
+                    logger.warning(f"No se pudo convertir el precio: {price_text}")
 
-                    if not product:
-                        product = Product(
-                            name=name,
-                            url=url,
-                            img=img_link,
+                category_name = self.search_query
+                self.items_count += 1
+
+                try:
+                    category = Category.query.filter_by(name=category_name).first()
+                    if not category:
+                        category = Category(name=category_name, tracked=True)
+                        db.session.add(category)
+                        db.session.commit()
+                        logger.info(f"Categoría creada: {category_name}")
+
+                    if category.tracked:
+                        product = Product.query.filter_by(name=name).first()
+
+                        if not product:
+                            product = Product(
+                                name=name,
+                                url=url,
+                                img=img_link,
+                                price=price,
+                                created_at=datetime.utcnow(),
+                                category_id=category.id,
+                                source="MercadoLibre",
+                            )
+                            db.session.add(product)
+                            logger.info(f"Producto agregado: {name}")
+                        else:
+                            product.price = price
+                            logger.info(f"Producto actualizado: {name}")
+                        db.session.commit()
+
+                        price_history = PriceHistory(
+                            product_id=product.id,
+                            date=datetime.utcnow(),
                             price=price,
-                            created_at=datetime.utcnow(),
-                            category_id=category.id,
-                            source="MercadoLibre",
                         )
-                        db.session.add(product)
+                        price_histories_to_add.append(price_history)
 
-                    else:
-                        product.price = price  # Actualiza el precio del producto existente
-                    db.session.commit()
-                    # Crear el historial de precios
-                    price_history = PriceHistory(
-                        product_id=product.id, date=datetime.utcnow(), price=price
-                    )
-                    price_histories_to_add.append(price_history)
+                except SQLAlchemyError as e:
+                    logger.error(f"Error en la base de datos: {e}", exc_info=True)
+                    db.session.rollback()
+                    raise
 
-        with app.app_context():
-            db.session.add_all(price_histories_to_add)
-            db.session.commit()
+            if price_histories_to_add:
+                db.session.add_all(price_histories_to_add)
+                db.session.commit()
+                logger.info("Historial de precios añadido.")
 
-        if self.items_count < self.max_items:
-            next_page = response.css('a.andes-pagination__link[title="Siguiente"]::attr(href)').get()
-            if next_page:
-                yield scrapy.Request(next_page, self.parse)
-        
-       
-    
-    def closed(self, reason):
-        self.logger.info(f"Término el scraping. Se extrajeron {self.items_count} items.")
-    
+            # Manejar la paginación
+            if self.items_count < self.max_items:
+                try:
+                    next_page = await page.eval_on_selector('a.andes-pagination__link[title="Siguiente"]', "el => el.href")
+                    if next_page:
+                        logger.info(f"Paginando a la siguiente URL: {next_page}")
+                        await self.process_page(page, url=next_page)
+                except Exception as e:
+                    logger.warning(f"No hay más páginas disponibles o error en la paginación: {e}")
 
-def run_spider(search_query):
-    process = CrawlerProcess(get_project_settings())
-    process.crawl(MercadoLibreCrawler, search_query=search_query)
-    process.start()
+        except Exception as e:
+            logger.error(f"Error al procesar la página: {e}", exc_info=True)
+            raise
 
-def scrape_products():
-    with app.app_context():
-        categories = Category.query.filter_by(tracked=True).all()
-        for category in categories:
-            scrape_product(category.name)
+async def scrape_product(search_query: str):
+    logger.info(f"Iniciando scrapeo para la búsqueda: {search_query}")
+    try:
+        scraper = MercadoLibreScraper(search_query)
+        await scraper.scrape()
+        logger.info(f"Scrapeo finalizado para la búsqueda: {search_query}")
+    except Exception as e:
+        logger.error(f"Error en el scraping: {e}", exc_info=True)
+        raise
 
-def scrape_product(search_query):
-    p = Process(target=run_spider, args=(search_query,))
-    p.start()
-    p.join()
 
 if __name__ == "__main__":
-    scrape_products()
-    
+    query = input("Ingrese la categoría a buscar: ")
+    try:
+        asyncio.run(scrape_product(query))
+    except Exception as e:
+        logger.critical(f"Error crítico al ejecutar el script principal: {e}", exc_info=True)

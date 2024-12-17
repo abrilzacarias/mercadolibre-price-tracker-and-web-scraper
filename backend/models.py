@@ -1,3 +1,4 @@
+from sqlalchemy import Index
 from app import db, app
 from datetime import datetime
 
@@ -54,3 +55,7 @@ class PriceHistory(db.Model):
             'date': self.date.isoformat(),
             'price': self.price
         }
+    
+    __table_args__ = (
+        Index('idx_price_history_product_id', 'product_id'),  
+    )

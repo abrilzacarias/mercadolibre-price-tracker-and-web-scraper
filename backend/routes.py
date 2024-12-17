@@ -16,7 +16,7 @@ def get_category():
 
 # add/scrape product category
 @app.route("/category", methods=["POST"])
-def scrape_product_category():
+async def scrape_product_category():
     from scraper import scrape_product
     try:
         input_data = request.json.get('name')
@@ -24,7 +24,7 @@ def scrape_product_category():
         if not input_data:
             return jsonify({'error': 'No category provided'}), 400
 
-        scrape_product(input_data)
+        await scrape_product(input_data)
 
         try:
             # Obtener la última categoría añadida
@@ -43,7 +43,6 @@ def scrape_product_category():
             print(f"Database error: {e}")
             return jsonify({"error": f"Error in database: {str(e)}"}), 500
 
-
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
@@ -55,16 +54,14 @@ def delete_product_category(id):
         category = Category.query.get(id)
         if not category:
             return jsonify({'error': 'Category not found'}), 404
-        
-        # Borrar los registros en price_history relacionados con los productos de la categoría
-        products = Product.query.filter_by(category_id=id).all()
-        for product in products:
-            PriceHistory.query.filter_by(product_id=product.id).delete()
 
-        # Borrar los productos relacionados con la categoría
-        Product.query.filter_by(category_id=id).delete()
+        db.session.query(PriceHistory).filter(
+            PriceHistory.product_id.in_(
+                db.session.query(Product.id).filter(Product.category_id == id)
+            )
+        ).delete(synchronize_session=False)
 
-        # Borrar la categoría
+        Product.query.filter(Product.category_id == id).delete(synchronize_session=False)
         db.session.delete(category)
         db.session.commit()
         return jsonify({'message': "Category deleted"}), 200

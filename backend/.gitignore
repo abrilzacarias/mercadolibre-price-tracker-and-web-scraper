@@ -23,3 +23,9 @@ pip-selfcheck.json
 # Dependency directories
 node_modules/
 /dist/
+
+# Ignore migrations folder
+migrations/
+
+# Ignore __pycache__ folder
+__pycache__/
