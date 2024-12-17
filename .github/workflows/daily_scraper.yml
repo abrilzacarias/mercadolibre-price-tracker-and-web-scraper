@@ -1,33 +1,34 @@
 name: Run Scraper
 
-on:
-  schedule:
-    - cron: '0 0 * * *'  # Ejecuta cada día a la medianoche
-  workflow_dispatch:  
-jobs:
-  run-scraper:
-    runs-on: ubuntu-latest
+#on:
+#  schedule:
+#    - cron: '0 0 * * *'  # Ejecuta cada día a la medianoche
+#  workflow_dispatch:  
+#jobs:
+#  run-scraper:
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#    - name: Checkout code
+#      uses: actions/checkout@v2
+#
+#    - name: Set up Python
+#      uses: actions/setup-python@v2
+#      with:
+#        python-version: '3.8'
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+#    - name: Install dependencies
+#      run: |
+#        cd backend
+#        pip install -r requirements.txt
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.8'
-
-    - name: Install dependencies
-      run: |
-        cd backend
-        pip install -r requirements.txt
-
-    - name: List files (for debugging)
-      run: ls -R
-
-    - name: Run scraper
-      env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      run: |
-        cd backend
-        python scraper.py
+#    - name: List files (for debugging)
+#      run: ls -R
+#
+#    - name: Run scraper
+#      env:
+#          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+#      run: |
+#        cd backend
+#        python scraper.py
+#
